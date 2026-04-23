@@ -49,213 +49,8 @@
   const SUBJECT_STORAGE_KEY = 're_helper_selected_subject_v1';
   const CUSTOM_ANSWERS_STORAGE_KEY = 're_helper_custom_answers_v2';
   const AUTO_SEND_STORAGE_KEY = 're_helper_auto_send_v1';
-  const SEARCH_ANSWER_ENABLED_KEY = 're_helper_search_answer_v1';
-
-  const THEME_DEFINITIONS = {
-    dark: {
-      label: 'Тёмная',
-      vars: {
-        '--re-bg-main': '#120f1f',
-        '--re-bg-glow-a': 'rgba(181, 143, 255, 0.20)',
-        '--re-bg-glow-b': 'rgba(127, 104, 255, 0.12)',
-        '--re-bg-card': '#1f1b31',
-        '--re-bg-soft': '#2a2540',
-        '--re-accent': '#b58fff',
-        '--re-accent-2': '#7f68ff',
-        '--re-text-main': '#f4edff',
-        '--re-text-muted': '#b8a8d6',
-        '--re-game-surface': 'linear-gradient(160deg, #26213a 0%, #1b162a 60%, #171223 100%)',
-        '--re-game-surface-border': 'rgba(181, 143, 255, 0.42)',
-        '--re-game-prob-surface': 'rgba(50, 43, 77, 0.55)',
-        '--re-game-prob-border': 'rgba(181, 143, 255, 0.30)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #453061 0%, #2f2242 100%)',
-        '--re-player-found-border': 'rgba(191, 155, 255, 0.65)',
-        '--re-button-gradient': 'linear-gradient(135deg, #a77dff 0%, #6f62ff 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #5f5678 0%, #4a4363 100%)',
-        '--re-input-bg': 'rgba(20, 17, 35, 0.88)',
-        '--re-input-border': 'rgba(181, 143, 255, 0.55)',
-        '--re-turn-log-color': '#cfbff0',
-        '--re-choice-bg': 'rgba(44, 33, 68, 0.92)',
-        '--re-choice-border': 'rgba(181, 143, 255, 0.5)',
-        '--re-gear-color': '#f3e8ff'
-      }
-    },
-    light: {
-      label: 'Светлая',
-      vars: {
-        '--re-bg-main': '#eaf1ff',
-        '--re-bg-glow-a': 'rgba(90, 133, 255, 0.24)',
-        '--re-bg-glow-b': 'rgba(91, 191, 170, 0.22)',
-        '--re-bg-card': '#f0f5ff',
-        '--re-bg-soft': '#dce8ff',
-        '--re-accent': '#5f86ff',
-        '--re-accent-2': '#53b3d3',
-        '--re-text-main': '#1a2f47',
-        '--re-text-muted': '#4d6382',
-        '--re-game-surface': 'linear-gradient(160deg, #ffffff 0%, #eef4ff 58%, #e6efff 100%)',
-        '--re-game-surface-border': 'rgba(112, 145, 205, 0.44)',
-        '--re-game-prob-surface': 'rgba(255, 255, 255, 0.84)',
-        '--re-game-prob-border': 'rgba(126, 154, 214, 0.45)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #edf6ff 0%, #dcecff 100%)',
-        '--re-player-found-border': 'rgba(99, 141, 215, 0.5)',
-        '--re-button-gradient': 'linear-gradient(135deg, #5f86ff 0%, #53b3d3 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #b9c5de 0%, #a7b8d5 100%)',
-        '--re-input-bg': 'rgba(255, 255, 255, 0.95)',
-        '--re-input-border': 'rgba(95, 134, 255, 0.42)',
-        '--re-turn-log-color': '#1e4d8d',
-        '--re-choice-bg': 'rgba(235, 243, 255, 0.92)',
-        '--re-choice-border': 'rgba(111, 142, 202, 0.55)',
-        '--re-gear-color': '#2f4f7a'
-      }
-    },
-    midnight: {
-      label: 'Полночь',
-      vars: {
-        '--re-bg-main': '#0a0a14',
-        '--re-bg-glow-a': 'rgba(60, 80, 200, 0.15)',
-        '--re-bg-glow-b': 'rgba(20, 40, 120, 0.12)',
-        '--re-bg-card': '#12121f',
-        '--re-bg-soft': '#1a1a2e',
-        '--re-accent': '#4a6fff',
-        '--re-accent-2': '#2a4aff',
-        '--re-text-main': '#e8ecff',
-        '--re-text-muted': '#8898c8',
-        '--re-game-surface': 'linear-gradient(160deg, #141428 0%, #0e0e1e 60%, #0a0a14 100%)',
-        '--re-game-surface-border': 'rgba(74, 111, 255, 0.35)',
-        '--re-game-prob-surface': 'rgba(30, 30, 55, 0.55)',
-        '--re-game-prob-border': 'rgba(74, 111, 255, 0.25)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #1e2040 0%, #141430 100%)',
-        '--re-player-found-border': 'rgba(74, 111, 255, 0.5)',
-        '--re-button-gradient': 'linear-gradient(135deg, #4a6fff 0%, #2a4aff 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #3a3a5a 0%, #2a2a48 100%)',
-        '--re-input-bg': 'rgba(10, 10, 20, 0.88)',
-        '--re-input-border': 'rgba(74, 111, 255, 0.45)',
-        '--re-turn-log-color': '#a8c0ff',
-        '--re-choice-bg': 'rgba(30, 30, 55, 0.92)',
-        '--re-choice-border': 'rgba(74, 111, 255, 0.5)',
-        '--re-gear-color': '#c8d4ff'
-      }
-    },
-    ocean: {
-      label: 'Океан',
-      vars: {
-        '--re-bg-main': '#0d1b2a',
-        '--re-bg-glow-a': 'rgba(0, 150, 200, 0.15)',
-        '--re-bg-glow-b': 'rgba(0, 100, 150, 0.12)',
-        '--re-bg-card': '#14202e',
-        '--re-bg-soft': '#1a2a3e',
-        '--re-accent': '#00b4d8',
-        '--re-accent-2': '#0096c7',
-        '--re-text-main': '#caf0f8',
-        '--re-text-muted': '#90e0ef',
-        '--re-game-surface': 'linear-gradient(160deg, #1b2838 0%, #14202e 60%, #0d1b2a 100%)',
-        '--re-game-surface-border': 'rgba(0, 180, 216, 0.35)',
-        '--re-game-prob-surface': 'rgba(20, 40, 60, 0.55)',
-        '--re-game-prob-border': 'rgba(0, 180, 216, 0.25)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #1e3048 0%, #142030 100%)',
-        '--re-player-found-border': 'rgba(0, 180, 216, 0.5)',
-        '--re-button-gradient': 'linear-gradient(135deg, #00b4d8 0%, #0096c7 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #2a4050 0%, #1e3040 100%)',
-        '--re-input-bg': 'rgba(10, 25, 40, 0.88)',
-        '--re-input-border': 'rgba(0, 180, 216, 0.45)',
-        '--re-turn-log-color': '#90e0ef',
-        '--re-choice-bg': 'rgba(20, 40, 60, 0.92)',
-        '--re-choice-border': 'rgba(0, 180, 216, 0.5)',
-        '--re-gear-color': '#caf0f8'
-      }
-    },
-    sunset: {
-      label: 'Закат',
-      vars: {
-        '--re-bg-main': '#1a0a14',
-        '--re-bg-glow-a': 'rgba(255, 100, 80, 0.15)',
-        '--re-bg-glow-b': 'rgba(200, 60, 120, 0.12)',
-        '--re-bg-card': '#2a1420',
-        '--re-bg-soft': '#3e1a2a',
-        '--re-accent': '#ff6b6b',
-        '--re-accent-2': '#ff8e8e',
-        '--re-text-main': '#fff0f0',
-        '--re-text-muted': '#d4a0a0',
-        '--re-game-surface': 'linear-gradient(160deg, #3a1a28 0%, #2a1420 60%, #1a0a14 100%)',
-        '--re-game-surface-border': 'rgba(255, 107, 107, 0.35)',
-        '--re-game-prob-surface': 'rgba(60, 30, 40, 0.55)',
-        '--re-game-prob-border': 'rgba(255, 107, 107, 0.25)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #4a2030 0%, #301820 100%)',
-        '--re-player-found-border': 'rgba(255, 107, 107, 0.5)',
-        '--re-button-gradient': 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #5a3040 0%, #4a2030 100%)',
-        '--re-input-bg': 'rgba(40, 15, 25, 0.88)',
-        '--re-input-border': 'rgba(255, 107, 107, 0.45)',
-        '--re-turn-log-color': '#ffb0b0',
-        '--re-choice-bg': 'rgba(60, 30, 40, 0.92)',
-        '--re-choice-border': 'rgba(255, 107, 107, 0.5)',
-        '--re-gear-color': '#fff0f0'
-      }
-    },
-    forest: {
-      label: 'Лес',
-      vars: {
-        '--re-bg-main': '#0a1a0a',
-        '--re-bg-glow-a': 'rgba(50, 200, 100, 0.15)',
-        '--re-bg-glow-b': 'rgba(30, 150, 80, 0.12)',
-        '--re-bg-card': '#142814',
-        '--re-bg-soft': '#1e3a1e',
-        '--re-accent': '#4ade80',
-        '--re-accent-2': '#22c55e',
-        '--re-text-main': '#dcfce7',
-        '--re-text-muted': '#a0d4a0',
-        '--re-game-surface': 'linear-gradient(160deg, #1e3820 0%, #142814 60%, #0a1a0a 100%)',
-        '--re-game-surface-border': 'rgba(74, 222, 128, 0.35)',
-        '--re-game-prob-surface': 'rgba(30, 50, 35, 0.55)',
-        '--re-game-prob-border': 'rgba(74, 222, 128, 0.25)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #204020 0%, #142814 100%)',
-        '--re-player-found-border': 'rgba(74, 222, 128, 0.5)',
-        '--re-button-gradient': 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #3a5030 0%, #2a3a20 100%)',
-        '--re-input-bg': 'rgba(15, 30, 15, 0.88)',
-        '--re-input-border': 'rgba(74, 222, 128, 0.45)',
-        '--re-turn-log-color': '#b0e8b0',
-        '--re-choice-bg': 'rgba(30, 50, 35, 0.92)',
-        '--re-choice-border': 'rgba(74, 222, 128, 0.5)',
-        '--re-gear-color': '#dcfce7'
-      }
-    },
-    graphite: {
-      label: 'Графит',
-      vars: {
-        '--re-bg-main': '#e8e8e8',
-        '--re-bg-glow-a': 'rgba(100, 100, 120, 0.15)',
-        '--re-bg-glow-b': 'rgba(80, 80, 100, 0.12)',
-        '--re-bg-card': '#f5f5f5',
-        '--re-bg-soft': '#dcdcdc',
-        '--re-accent': '#6b7280',
-        '--re-accent-2': '#4b5563',
-        '--re-text-main': '#1f2937',
-        '--re-text-muted': '#6b7280',
-        '--re-game-surface': 'linear-gradient(160deg, #fafafa 0%, #f0f0f0 58%, #e8e8e8 100%)',
-        '--re-game-surface-border': 'rgba(107, 114, 128, 0.44)',
-        '--re-game-prob-surface': 'rgba(255, 255, 255, 0.84)',
-        '--re-game-prob-border': 'rgba(107, 114, 128, 0.35)',
-        '--re-player-found-surface': 'linear-gradient(145deg, #f8f8f8 0%, #f0f0f0 100%)',
-        '--re-player-found-border': 'rgba(107, 114, 128, 0.4)',
-        '--re-button-gradient': 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
-        '--re-button-text': '#ffffff',
-        '--re-button-disabled-gradient': 'linear-gradient(135deg, #d1d5db 0%, #c0c4cc 100%)',
-        '--re-input-bg': 'rgba(255, 255, 255, 0.95)',
-        '--re-input-border': 'rgba(107, 114, 128, 0.42)',
-        '--re-turn-log-color': '#374151',
-        '--re-choice-bg': 'rgba(245, 245, 245, 0.92)',
-        '--re-choice-border': 'rgba(107, 114, 128, 0.55)',
-        '--re-gear-color': '#1f2937'
-      }
-    }
-  };
+const SEARCH_ANSWER_ENABLED_KEY = 're_helper_search_answer_v1';
+  const SAVE_ANSWER_MODE_KEY = 're_helper_save_answer_mode_v1';
 
   const ALL_THEMES = Object.entries(THEME_DEFINITIONS).map(([key, val]) => ({ value: key, label: val.label }));
   const TOOLS_THEME_STORAGE_KEY = 're_helper_tools_theme_v1';
@@ -294,6 +89,7 @@
   let searchStartTime = null;
   let searchTimerInterval = null;
   let searchAnswerEnabled = false;
+  let saveAnswerMode = 'correct'; // 'correct', 'all', 'none'
   const queuedExternalButtons = [...EXTRA_MENU_BUTTONS];
 
   function safeArray(value) {
@@ -1125,22 +921,17 @@
 
   function sendAutoBetIfNeeded() {
     if (!autoBetEnabled || !game || typeof game.send !== 'function') return;
-    if (autoBetTimer) return;
     const betButtons = document.querySelectorAll('.game_turn_bet');
     if (betButtons.length) {
       for (const btn of betButtons) {
         if (btn.textContent.trim() === String(autoBetValue)) {
           btn.click();
-          break;
+          return;
         }
       }
     } else {
       game.send({ action: 'trade_turn', bet: String(autoBetValue) });
     }
-    const cooldown = calculateAutoBetCooldown();
-    autoBetTimer = setTimeout(() => {
-      autoBetTimer = null;
-    }, cooldown * 1000);
   }
 
   function cancelAutoBetTimer() {
@@ -1386,17 +1177,7 @@
         const haveTurn = resp.have_turn === true || resp.have_turn === 1;
         if (haveTurn) {
           setTimeout(sendAutoBetIfNeeded, 100);
-        } else {
-          cancelAutoBetTimer();
         }
-      }
-
-      if ((resp?.function === 'trade_init' || resp?.function === 'trade_state') && !autoBetEnabled) {
-        cancelAutoBetTimer();
-      }
-
-      if (resp?.function === 'show_prob') {
-        cancelAutoBetTimer();
       }
     };
   }
@@ -1633,11 +1414,11 @@
       .game_his_result { right: 16px !important; left: auto !important; bottom: 92px !important; text-align: center; }
 
       .game_my_result.re-status-correct, .game_his_result.re-status-correct {
-        background: rgba(34, 92, 52, 0.74) !important; border-color: rgba(124, 255, 173, 0.88) !important; color: #92ffc0 !important;
+        background: rgba(30, 100, 50, 0.95) !important; border-color: rgba(124, 255, 173, 1) !important; color: #c8ffd0 !important;
       }
 
       .game_my_result.re-status-wrong, .game_his_result.re-status-wrong {
-        background: rgba(120, 34, 51, 0.74) !important; border-color: rgba(255, 142, 165, 0.88) !important; color: #ff9ab0 !important;
+        background: rgba(130, 30, 50, 0.95) !important; border-color: rgba(255, 142, 165, 1) !important; color: #ffcccc !important;
       }
 
       .game_player_found { background: var(--re-player-found-surface) !important; border: 1px solid var(--re-player-found-border) !important; border-radius: 16px !important; color: var(--re-text-main) !important; }
@@ -1679,7 +1460,7 @@
       .re-choice-button.is-selected { background: rgba(50, 168, 92, 0.86); border-color: rgba(151, 255, 187, 0.9); color: #f4fff8; }
       .re-choice-button.is-excluded { background: rgba(182, 63, 84, 0.86); border-color: rgba(255, 156, 177, 0.9); color: #fff6f8; }
 
-      .re-highlight-word { background: rgba(255, 235, 120, 0.3); color: #ffea8c; font-weight: 700; padding: 1px 2px; border-radius: 4px; border-bottom: 1px solid #ffd966; }
+      .re-highlight-word { background: rgba(0, 0, 0, 0.4); color: #ffe066; font-weight: 700; padding: 1px 2px; border-radius: 4px; border: 1px solid rgba(255, 200, 0, 0.6); }
 
       .game_countdown.re-timer-warning { color: #ffb347 !important; font-weight: 800; animation: pulse-warning 1s infinite; }
       .game_countdown.re-timer-critical { color: #ff6b6b !important; font-weight: 900; animation: pulse-critical 0.5s infinite; }
@@ -3218,26 +2999,29 @@
     }
 
     renderThemes() {
-      const themeOptions = [
-        { value: 'dark', label: 'Тёмная тема', preview: 'background:#120f1f;color:#f4edff;border:1px solid #b58fff' },
-        { value: 'light', label: 'Светлая тема', preview: 'background:#eaf1ff;color:#1a2f47;border:1px solid #5f86ff' }
-      ];
+      const themePreviews = {
+        dark: 'background:#120f1f;color:#f4edff;border:2px solid #b58fff',
+        light: 'background:#eaf1ff;color:#1a2f47;border:2px solid #5f86ff',
+        midnight: 'background:#0a0a14;color:#e8ecff;border:2px solid #4a6fff',
+        ocean: 'background:#0d1b2a;color:#caf0f8;border:2px solid #00b4d8',
+        sunset: 'background:#1a0a14;color:#fff0f0;border:2px solid #ff6b6b',
+        forest: 'background:#0a1a0a;color:#dcfce7;border:2px solid #4ade80',
+        graphite: 'background:#e8e8e8;color:#1f2937;border:2px solid #6b7280'
+      };
       const bodyHtml = `
         <div style="padding: 10px;">
-          <p style="margin-bottom: 15px; font-size: 13px;">Выберите тему оформления игры:</p>
-          <div style="display: flex; gap: 15px;">
-            ${themeOptions.map(t => {
-              const selected = currentTheme === t.value ? 'border-color: var(--re-accent); box-shadow: 0 0 12px var(--re-accent);' : '';
-              return `<div class="theme-option" data-theme="${t.value}" style="flex: 1; padding: 15px; border-radius: 12px; cursor: pointer; ${t.preview} ${selected}">
-                <div style="font-weight: bold; margin-bottom: 8px;">${t.label}</div>
-                <div style="font-size: 12px; opacity: 0.8;">Нажмите для выбора</div>
+          <p style="margin-bottom: 15px; font-size: 13px;">Выберите тему оформления:</p>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+            ${ALL_THEMES.map(t => {
+              const selected = currentTheme === t.value ? 'box-shadow: 0 0 12px var(--re-accent); transform: scale(1.02);' : '';
+              return `<div class="theme-option" data-theme="${t.value}" style="padding: 15px; border-radius: 12px; cursor: pointer; ${themePreviews[t.value] || ''} ${selected}">
+                <div style="font-weight: bold; margin-bottom: 4px;">${t.label}</div>
               </div>`;
             }).join('')}
           </div>
-          <p style="margin-top: 15px; font-size: 12px; color: var(--re-text-muted);">Это изменит цветовую схему страницы игры (не меню).</p>
         </div>
       `;
-      this.renderView('🎨 Темы оформления', bodyHtml, { closeReturnsToMain: true });
+      this.renderView('🎨 Темы', bodyHtml, { closeReturnsToMain: true });
 
       this.contentDiv.querySelectorAll('.theme-option').forEach(opt => {
         opt.addEventListener('click', () => {
