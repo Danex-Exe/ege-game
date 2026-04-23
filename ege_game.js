@@ -1,8 +1,8 @@
-﻿// ==UserScript==
+// ==UserScript==
 // @name         ReshEge-Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.0.4
-// @description  Удобное меню для игры «Держи оборону» с историей матчей, таблицей лидеров и расширенной статистикой.
+// @version      1.1.0
+  // @description  ReshEge-Helper - Меню для игры «Держи оборону» с историей матчей, таблицей лидеров, кастомным автоответчиком, поиском ответов, калькулятором и шпаргалками.
 // @author       github.com/Danex-Exe
 // @match        https://ege.sdamgia.ru/game.htm
 // @grant        none
@@ -15,7 +15,7 @@
 
   const SCRIPT_META = {
     title: 'ReshEge-Helper',
-    version: 'v1.0.4'
+    version: 'v1.1.0'
   };
 
   const VIEW = {
@@ -23,7 +23,15 @@
     HISTORY: 'history',
     LEADERBOARD: 'highscore',
     AUTO_BET: 'auto_bet',
-    AUTO_HIGHLIGHT: 'auto_highlight'
+    AUTO_HIGHLIGHT: 'auto_highlight',
+    ANSWERS_MANAGER: 'answers_manager',
+    ANSWERS_LIST: 'answers_list',
+    ANSWER_EDITOR: 'answer_editor',
+    CALCULATOR: 'calculator',
+    FORMULAS: 'formulas',
+    SEARCH_ANSWERS: 'search_answers',
+    SETTINGS: 'settings',
+    THEMES: 'themes'
   };
   const THEME = {
     DARK: 'dark',
@@ -38,8 +46,11 @@
   const AUTO_BET_STORAGE_KEY = 're_helper_auto_bet_v1';
   const AUTO_HIGHLIGHT_STORAGE_KEY = 're_helper_auto_highlight_v1';
   const SUBJECT_STORAGE_KEY = 're_helper_selected_subject_v1';
+  const CUSTOM_ANSWERS_STORAGE_KEY = 're_helper_custom_answers_v2';
+  const AUTO_SEND_STORAGE_KEY = 're_helper_auto_send_v1';
+  const TOOLS_THEME_STORAGE_KEY = 're_helper_tools_theme_v1';
   const MAX_ANSWER_CACHE_ENTRIES = 500;
-  const SUBJECTS = ['math', 'rus', 'phys', 'chem', 'bio', 'hist', 'soc', 'inf', 'geo', 'eng', 'ger', 'fra', 'spa', 'lit'];
+  const SUBJECTS = ['math', 'rus', 'phys', 'chem', 'bio', 'hist', 'soc', 'inf', 'geo', 'eng', 'ger', 'fra', 'spa', 'lit', 'mateg'];
 
   const EXTRA_MENU_BUTTONS = [];
 
@@ -55,12 +66,21 @@
   let autoAnswerEnabled = false;
   let autoBetEnabled = false;
   let autoBetValue = 10;
+  let autoBetCooldownMin = 5;
+  let autoBetCooldownMax = 15;
   let autoHighlightEnabled = false;
   let highlightWords = [];
+  let autoSendEnabled = false;
+  let autoSendCooldownMin = 5;
+  let autoSendCooldownMax = 15;
+  let customAnswers = {};
+  let toolsTheme = 'dark';
   let hotkeysBound = false;
   let leaderboardCache = null;
   let leaderboardCacheTime = 0;
-  let selectedSubject = 'math';
+  let autoSendTimer = null;
+  let autoBetTimer = null;
+  let selectedSubject = 'mathprof';
   const queuedExternalButtons = [...EXTRA_MENU_BUTTONS];
 
   function safeArray(value) {
@@ -311,6 +331,228 @@
     try {
       localStorage.setItem(SUBJECT_STORAGE_KEY, subj);
     } catch (e) {}
+  }
+
+  function loadCustomAnswers() {
+    try {
+      const stored = localStorage.getItem(CUSTOM_ANSWERS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch (e) {}
+    return {};
+  }
+
+  function saveCustomAnswers() {
+    try {
+      localStorage.setItem(CUSTOM_ANSWERS_STORAGE_KEY, JSON.stringify(customAnswers));
+    } catch (e) {}
+  }
+
+  function getCustomAnswersForSubject(subject) {
+    if (!customAnswers[subject]) customAnswers[subject] = [];
+    return customAnswers[subject];
+  }
+
+  function addCustomAnswer(subject, question, answer) {
+    if (!customAnswers[subject]) customAnswers[subject] = [];
+    const existing = customAnswers[subject].findIndex(a => a.q === question);
+    if (existing >= 0) {
+      customAnswers[subject][existing].a = answer;
+    } else {
+      customAnswers[subject].push({ q: question, a: answer, ts: Date.now() });
+    }
+    saveCustomAnswers();
+  }
+
+  function deleteCustomAnswer(subject, question) {
+    if (!customAnswers[subject]) return;
+    customAnswers[subject] = customAnswers[subject].filter(a => a.q !== question);
+    saveCustomAnswers();
+  }
+
+  function importCustomAnswers(data) {
+    try {
+      if (typeof data === 'string') data = JSON.parse(data);
+      if (data && typeof data === 'object') {
+        customAnswers = data;
+        saveCustomAnswers();
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function exportCustomAnswers() {
+    return JSON.stringify(customAnswers, null, 2);
+  }
+
+  function loadAutoSendSettings() {
+    try {
+      const stored = localStorage.getItem(AUTO_SEND_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          autoSendEnabled = parsed.enabled === true;
+          autoSendCooldownMin = Number(parsed.cooldownMin) || 5;
+          autoSendCooldownMax = Number(parsed.cooldownMax) || 15;
+          return;
+        }
+      }
+    } catch (e) {}
+    autoSendEnabled = false;
+    autoSendCooldownMin = 5;
+    autoSendCooldownMax = 15;
+  }
+
+  function saveAutoSendSettings() {
+    try {
+      localStorage.setItem(AUTO_SEND_STORAGE_KEY, JSON.stringify({
+        enabled: autoSendEnabled,
+        cooldownMin: autoSendCooldownMin,
+        cooldownMax: autoSendCooldownMax
+      }));
+    } catch (e) {}
+  }
+
+  function loadToolsTheme() {
+    try {
+      const stored = localStorage.getItem(TOOLS_THEME_STORAGE_KEY);
+      if (stored === 'light' || stored === 'dark') toolsTheme = stored;
+      else toolsTheme = 'dark';
+    } catch (e) {
+      toolsTheme = 'dark';
+    }
+  }
+
+  function saveToolsTheme(theme) {
+    toolsTheme = theme;
+    try {
+      localStorage.setItem(TOOLS_THEME_STORAGE_KEY, theme);
+    } catch (e) {}
+  }
+
+  function loadAutoBetCooldown() {
+    try {
+      const stored = localStorage.getItem('re_helper_auto_bet_cooldown_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          autoBetCooldownMin = Number(parsed.min) || 5;
+          autoBetCooldownMax = Number(parsed.max) || 15;
+          return;
+        }
+      }
+    } catch (e) {}
+    autoBetCooldownMin = 5;
+    autoBetCooldownMax = 15;
+  }
+
+  function saveAutoBetCooldown() {
+    try {
+      localStorage.setItem('re_helper_auto_bet_cooldown_v1', JSON.stringify({
+        min: autoBetCooldownMin,
+        max: autoBetCooldownMax
+      }));
+    } catch (e) {}
+  }
+
+  function getRandomCooldown(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function getWordCount(text) {
+    return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+  }
+
+  function calculateAutoSendCooldown(questionText) {
+    const words = getWordCount(questionText);
+    let min = autoSendCooldownMin;
+    let max = autoSendCooldownMax;
+    if (words > 50) {
+      min = Math.max(min, Math.floor(words / 5));
+      max = Math.max(max, Math.floor(words / 3));
+    }
+    return getRandomCooldown(min, max);
+  }
+
+  function calculateAutoBetCooldown() {
+    return getRandomCooldown(autoBetCooldownMin, autoBetCooldownMax);
+  }
+
+  function cancelAutoSendTimer() {
+    if (autoSendTimer) {
+      clearTimeout(autoSendTimer);
+      autoSendTimer = null;
+    }
+  }
+
+  function tryAutoSendAnswer(problemRef, questionText) {
+    if (!autoSendEnabled) return false;
+    cancelAutoSendTimer();
+    const cooldown = calculateAutoSendCooldown(questionText);
+    autoSendTimer = setTimeout(() => {
+      autoSendTimer = null;
+      const rememberedAnswer = getRememberedAnswer(problemRef);
+      if (rememberedAnswer) {
+        const answerInput = document.querySelector('.game_answer_inp');
+        if (answerInput) {
+          answerInput.value = rememberedAnswer;
+          answerInput.dispatchEvent(new Event('input', { bubbles: true }));
+          setTimeout(() => {
+            const submitBtn = document.querySelector('.game_answer_send');
+            if (submitBtn && !submitBtn.disabled) {
+              submitBtn.click();
+            }
+          }, 200);
+        }
+      }
+    }, cooldown * 1000);
+    return true;
+  }
+
+  async function searchAnswerOnSdamgia(question, subject) {
+    const domainMap = {
+      mathprof: 'math', mateg: 'math', rus: 'rus', phys: 'phys', chem: 'chem',
+      bio: 'bio', hist: 'hist', soc: 'soc', inf: 'inf', geo: 'geo',
+      eng: 'eng', ger: 'ger', fra: 'fra', spa: 'spa', lit: 'lit'
+    };
+    const domain = domainMap[subject] || 'rus';
+    const query = encodeURIComponent(question.substring(0, 200));
+    const searchUrl = `https://www.google.com/search?q=${query}+site%3A${domain}-ege.sdamgia.ru`;
+    const sdamgiaUrl = `https://${domain}-ege.sdamgia.ru/`;
+    return { searchUrl, sdamgiaUrl };
+  }
+
+  function getSubjectLabel(subject) {
+    const labels = {
+      mathprof: 'Профильная математика', mateg: 'Базовая математика',
+      rus: 'Русский язык', phys: 'Физика', chem: 'Химия', bio: 'Биология',
+      hist: 'История', soc: 'Обществознание', inf: 'Информатика', geo: 'География',
+      eng: 'Английский', ger: 'Немецкий', fra: 'Французский', spa: 'Испанский', lit: 'Литература'
+    };
+    return labels[subject] || subject;
+  }
+
+  function getAllSubjectsForSelection() {
+    return [
+      { value: 'mathprof', label: 'Профильная математика' },
+      { value: 'mateg', label: 'Базовая математика' },
+      { value: 'rus', label: 'Русский язык' },
+      { value: 'phys', label: 'Физика' },
+      { value: 'chem', label: 'Химия' },
+      { value: 'bio', label: 'Биология' },
+      { value: 'hist', label: 'История' },
+      { value: 'soc', label: 'Обществознание' },
+      { value: 'inf', label: 'Информатика' },
+      { value: 'geo', label: 'География' },
+      { value: 'eng', label: 'Английский' },
+      { value: 'ger', label: 'Немецкий' },
+      { value: 'fra', label: 'Французский' },
+      { value: 'spa', label: 'Испанский' },
+      { value: 'lit', label: 'Литература' }
+    ];
   }
 
   function tryAutofillRememberedAnswer(problemRef) {
@@ -623,16 +865,29 @@
 
   function sendAutoBetIfNeeded() {
     if (!autoBetEnabled || !game || typeof game.send !== 'function') return;
+    if (autoBetTimer) return;
     const betButtons = document.querySelectorAll('.game_turn_bet');
     if (betButtons.length) {
       for (const btn of betButtons) {
         if (btn.textContent.trim() === String(autoBetValue)) {
           btn.click();
-          return;
+          break;
         }
       }
+    } else {
+      game.send({ action: 'trade_turn', bet: String(autoBetValue) });
     }
-    game.send({ action: 'trade_turn', bet: String(autoBetValue) });
+    const cooldown = calculateAutoBetCooldown();
+    autoBetTimer = setTimeout(() => {
+      autoBetTimer = null;
+    }, cooldown * 1000);
+  }
+
+  function cancelAutoBetTimer() {
+    if (autoBetTimer) {
+      clearTimeout(autoBetTimer);
+      autoBetTimer = null;
+    }
   }
 
   function clearHighlights() {
@@ -748,7 +1003,8 @@
     `;
 
     const subjects = [
-      { value: 'math', label: 'Математика' },
+      { value: 'mathprof', label: 'Профильная математика' },
+      { value: 'mateg', label: 'Базовая математика' },
       { value: 'rus', label: 'Русский язык' },
       { value: 'phys', label: 'Физика' },
       { value: 'chem', label: 'Химия' },
@@ -839,14 +1095,23 @@
         if (autoHighlightEnabled && highlightWords.length) {
           applyHighlightToProblem(highlightWords);
         }
+        cancelAutoSendTimer();
+        if (autoSendEnabled) {
+          const problemContainer = document.querySelector('.game_prob');
+          const questionText = problemContainer ? problemContainer.textContent || '' : '';
+          tryAutoSendAnswer(currentProblemFingerprint, questionText);
+        }
       }
 
       if (resp?.function === 'my_result' && typeof resp.answer === 'string' && resp.right === true) {
-          rememberAnswerForProblem(currentProblemFingerprint, resp.answer);
+        rememberAnswerForProblem(currentProblemFingerprint, resp.answer);
       }
 
       if (resp?.function === 'my_result' && typeof resp.right === 'boolean') {
         setResultBadgeState('.game_my_result', resp.right);
+        if (resp.right === false && typeof resp.answer === 'string') {
+          rememberAnswerForProblem(currentProblemFingerprint, resp.answer);
+        }
       }
 
       if (resp?.function === 'his_result' && typeof resp.right === 'boolean') {
@@ -858,6 +1123,10 @@
         if (haveTurn) {
           setTimeout(sendAutoBetIfNeeded, 100);
         }
+      }
+
+      if ((resp?.function === 'trade_init' || resp?.function === 'trade_state') && !autoBetEnabled) {
+        cancelAutoBetTimer();
       }
     };
   }
@@ -2061,6 +2330,62 @@
         }
       });
 
+      this.registerMenuButton({
+        id: 're_calculator',
+        label: 'Калькулятор',
+        icon: '🧮',
+        onClick: () => this.showCalculator()
+      });
+
+      this.registerMenuButton({
+        id: 're_formulas',
+        label: 'Шпаргалка по формулам',
+        icon: '📐',
+        onClick: () => this.showFormulas()
+      });
+
+      this.registerMenuButton({
+        id: 're_constants',
+        label: 'Константы и числа',
+        icon: '🔢',
+        onClick: () => this.showConstants()
+      });
+
+      this.registerMenuButton({
+        id: 're_periodic',
+        label: 'Таблица Менделеева',
+        icon: '⚛️',
+        onClick: () => this.showPeriodicTable()
+      });
+
+      this.registerMenuButton({
+        id: 're_answers_manager',
+        label: 'Менеджер ответов',
+        icon: '📚',
+        onClick: () => this.showAnswersManager()
+      });
+
+      this.registerMenuButton({
+        id: 're_search_answers',
+        label: 'Поиск ответов',
+        icon: '🔎',
+        onClick: () => this.showSearchAnswers()
+      });
+
+      this.registerMenuButton({
+        id: 're_settings',
+        label: 'Настройки',
+        icon: '⚙️',
+        onClick: () => this.showSettings()
+      });
+
+      this.registerMenuButton({
+        id: 're_themes',
+        label: 'Темы оформления',
+        icon: '🎨',
+        onClick: () => this.showThemes()
+      });
+
       this.updateThemeToggleButton();
       this.updateAutoAnswerButton();
     }
@@ -2162,7 +2487,15 @@
           <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0;">
             ${betButtonsHtml}
           </div>
-          <p style="font-size: 12px; color: var(--re-text-muted);">Нажмите на ставку, чтобы включить автоставку. Повторное нажатие на выбранную ставку отключит автоставку.</p>
+          <div style="margin-top: 20px; padding: 12px; background: rgba(63, 48, 95, 0.5); border-radius: 10px;">
+            <p style="margin-bottom: 10px; font-size: 13px;">Настройка КД автоставки (секунды):</p>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <label style="font-size: 12px;">Мин: <input type="number" id="bet-cd-min" min="1" max="60" value="${autoBetCooldownMin}" style="width: 50px; padding: 5px; border-radius: 6px; border: 1px solid var(--re-input-border); background: var(--re-input-bg); color: var(--re-text-main);"></label>
+              <label style="font-size: 12px;">Макс: <input type="number" id="bet-cd-max" min="1" max="60" value="${autoBetCooldownMax}" style="width: 50px; padding: 5px; border-radius: 6px; border: 1px solid var(--re-input-border); background: var(--re-input-bg); color: var(--re-text-main);"></label>
+            </div>
+            <button id="save-bet-cd" class="toggle-button" style="margin-top: 10px; padding: 8px 16px; font-size: 12px;">Сохранить КД</button>
+          </div>
+          <p style="font-size: 12px; color: var(--re-text-muted); margin-top: 12px;">Нажмите на ставку, чтобы включить автоставку. Повторное нажатие на выбранную ставку отключит автоставку.</p>
         </div>
       `;
 
@@ -2182,6 +2515,21 @@
           this.renderAutoBetPanel();
         });
       });
+
+      const saveCdBtn = this.contentDiv.querySelector('#save-bet-cd');
+      if (saveCdBtn) {
+        saveCdBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const minInput = this.contentDiv.querySelector('#bet-cd-min');
+          const maxInput = this.contentDiv.querySelector('#bet-cd-max');
+          if (minInput && maxInput) {
+            autoBetCooldownMin = Math.max(1, Math.min(60, parseInt(minInput.value, 10) || 5));
+            autoBetCooldownMax = Math.max(autoBetCooldownMin, Math.min(60, parseInt(maxInput.value, 10) || 15));
+            saveAutoBetCooldown();
+            this.renderAutoBetPanel();
+          }
+        });
+      }
     }
 
     showAutoHighlightPanel() {
@@ -2397,6 +2745,322 @@
         });
       });
     }
+
+    showCalculator() {
+      this.currentView = VIEW.CALCULATOR;
+      this.renderCalculator();
+    }
+
+    renderCalculator() {
+      const bodyHtml = `
+        <div style="padding: 10px;">
+          <input type="text" id="calc-display" readonly style="width: 100%; padding: 15px; font-size: 24px; text-align: right; background: var(--re-input-bg); border: 1px solid var(--re-input-border); border-radius: 10px; color: var(--re-text-main); margin-bottom: 10px; box-sizing: border-box;">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+            ${['C', '(', ')', '/', '7', '8', '9', '*', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '=', 'x²'].map(btn => {
+              const val = btn === '=' ? 'eval(this.value)' : btn === 'x²' ? '**2' : btn;
+              return `<button onclick="this.parentElement.previousElementSibling.value=${btn === '=' ? 'eval(this.previousElementSibling.value)' : btn === 'x²' ? 'Math.pow(eval(this.previousElementSibling.value), 2)' : `this.parentElement.previousElementSibling.value+=${JSON.stringify(btn)}`}" style="padding: 14px; font-size: 18px; border-radius: 8px; border: 1px solid var(--re-input-border); background: ${['/', '*', '-', '+', '='].includes(btn) ? 'var(--re-accent)' : 'var(--re-bg-card)'}; color: var(--re-text-main); cursor: pointer; font-weight: bold;">${btn}</button>`;
+            }).join('')}
+          </div>
+          <button onclick="document.getElementById('calc-display').value=''" class="toggle-button" style="margin-top: 10px; width: 100%;">Очистить</button>
+        </div>
+      `;
+      this.renderView('🧮 Калькулятор', bodyHtml, { closeReturnsToMain: true });
+    }
+
+    showFormulas() {
+      this.currentView = VIEW.FORMULAS;
+      this.renderFormulas();
+    }
+
+    renderFormulas() {
+      const formulas = [
+        { subject: 'Математика', items: [
+          'a²-b² = (a-b)(a+b)', 'a³+b³ = (a+b)(a²-ab+b²)', 'a³-b³ = (a-b)(a²+ab+b²)',
+          'sin²x + cos²x = 1', '1 + tg²x = 1/cos²x', 'logₐ(bc) = logₐb + logₐc',
+          'S = πr²', 'V = 4/3πr³', 'y = ax² + bx + c', 'D = b² - 4ac'
+        ]},
+        { subject: 'Физика', items: [
+          'F = ma', 'E = mc²', 'P = mv', 'p = F/S', 'Eₚ = mgh',
+          'Q = cm(t₂-t₁)', 'I = q/t', 'U = IR', 'λ = c/f', 'E = F/q'
+        ]},
+        { subject: 'Химия', items: [
+          'pH = -lg[H⁺]', 'n = m/M', 'Vₘ = 22.4 л/моль', 'C = n/V', 'PV = nRT',
+          'KMnO₄ → K₂MnO₄ + MnO₂ + O₂', 'CₙH₂ₙ₊₂ алканы', 'CₙH₂ₙ алкены'
+        ]}
+      ];
+
+      const tabs = formulas.map((f, i) => `<button class="toggle-button ${i === 0 ? '' : 'off'}" data-formula-tab="${i}" style="padding: 8px 14px; font-size: 13px;">${f.subject}</button>`).join('');
+      const content = formulas.map((f, i) => `<div id="formula-tab-${i}" style="display: ${i === 0 ? 'block' : 'none'}; margin-top: 10px;">${f.items.map(item => `<div style="padding: 8px 12px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px; font-size: 14px;">${item}</div>`).join('')}</div>`).join('');
+
+      const bodyHtml = `<div style="padding: 10px;">${tabs}${content}</div>`;
+      this.renderView('📐 Шпаргалка по формулам', bodyHtml, { closeReturnsToMain: true });
+
+      formulas.forEach((_, i) => {
+        const btn = this.contentDiv.querySelector(`[data-formula-tab="${i}"]`);
+        if (btn) {
+          btn.addEventListener('click', () => {
+            formulas.forEach((_, j) => {
+              const tab = this.contentDiv.querySelector(`#formula-tab-${j}`);
+              const b = this.contentDiv.querySelector(`[data-formula-tab="${j}"]`);
+              if (tab) tab.style.display = j === i ? 'block' : 'none';
+              if (b) b.classList.toggle('off', j !== i);
+            });
+          });
+        }
+      });
+    }
+
+    showConstants() {
+      this.currentView = VIEW.CALCULATOR;
+      const bodyHtml = `
+        <div style="padding: 10px; font-size: 13px;">
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>π</strong> = 3.14159265358979</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>e</strong> = 2.71828182845905</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>√2</strong> = 1.41421356237310</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>√3</strong> = 1.73205080756888</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>φ (золотое сечение)</strong> = 1.61803398874989</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>c (скорость света)</strong> = 299792458 м/с</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>g</strong> = 9.80665 м/с²</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>R (газовая)</strong> = 8.314 Дж/(моль·К)</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>Nₐ</strong> = 6.02214076×10²³ моль⁻¹</div>
+          <div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px;"><strong>h (Планка)</strong> = 6.62607015×10⁻³⁴ Дж·с</div>
+        </div>
+      `;
+      this.renderView('🔢 Константы и числа', bodyHtml, { closeReturnsToMain: true });
+    }
+
+    showPeriodicTable() {
+      this.currentView = VIEW.CALCULATOR;
+      const elements = [
+        ['H','1.008','1','1'], ['He','4.003','2','18'], ['Li','6.941','3','1'], ['Be','9.012','4','2'], ['B','10.81','5','13'], ['C','12.01','6','14'], ['N','14.01','7','15'], ['O','16.00','8','16'], ['F','19.00','9','17'], ['Ne','20.18','10','18'],
+        ['Na','22.99','11','1'], ['Mg','24.31','12','2'], ['Al','26.98','13','13'], ['Si','28.09','14','14'], ['P','30.97','15','15'], ['S','32.07','16','16'], ['Cl','35.45','17','17'], ['Ar','39.95','18','18'],
+        ['K','39.10','19','1'], ['Ca','40.08','20','2'], ['Fe','55.85','26','8'], ['Cu','63.55','29','11'], ['Zn','65.38','30','12'], ['Ag','107.9','47','11'], ['Au','197.0','79','11']
+      ];
+      const grid = elements.map(([sym, mass, num, grp]) => `<div style="padding: 6px 4px; background: var(--re-bg-card); border-radius: 6px; text-align: center; min-width: 50px;"><div style="font-weight: bold; font-size: 16px;">${sym}</div><div style="font-size: 10px; color: var(--re-text-muted);">${mass}</div><div style="font-size: 9px; color: var(--re-text-muted);">${num}</div></div>`).join('');
+      const bodyHtml = `<div style="padding: 10px;"><p style="margin-bottom: 10px; font-size: 13px;">Основные элементы (полная таблица доступна на sdamgia.ru):</p><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(55px, 1fr)); gap: 5px;">${grid}</div></div>`;
+      this.renderView('⚛️ Таблица Менделеева', bodyHtml, { closeReturnsToMain: true });
+    }
+
+    showAnswersManager() {
+      this.currentView = VIEW.ANSWERS_MANAGER;
+      this.renderAnswersManager();
+    }
+
+    renderAnswersManager() {
+      const subjects = getAllSubjectsForSelection();
+      const totalAnswers = Object.values(customAnswers).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+
+      const bodyHtml = `
+        <div style="padding: 10px;">
+          <div style="margin-bottom: 15px; padding: 12px; background: var(--re-bg-card); border-radius: 10px;">
+            <p style="margin: 0 0 8px; font-size: 13px;">Всего сохранено ответов: <strong>${totalAnswers}</strong></p>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button id="import-answers" class="toggle-button" style="padding: 8px 12px; font-size: 12px;">Импорт</button>
+              <button id="export-answers" class="toggle-button" style="padding: 8px 12px; font-size: 12px;">Экспорт</button>
+              <button id="clear-answers" class="toggle-button off" style="padding: 8px 12px; font-size: 12px;">Очистить всё</button>
+            </div>
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="font-size: 13px; display: block; margin-bottom: 6px;">Выберите предмет:</label>
+            <select id="answers-subject-select" class="highlight-input" style="padding: 10px; margin-bottom: 10px;">
+              ${subjects.map(s => `<option value="${s.value}">${s.label}</option>`).join('')}
+            </select>
+            <button id="show-subject-answers" class="toggle-button" style="padding: 8px 16px; font-size: 12px;">Показать ответы</button>
+          </div>
+          <div id="answers-list-container"></div>
+          <div style="margin-top: 15px; padding: 12px; background: var(--re-bg-card); border-radius: 10px;">
+            <p style="margin: 0 0 8px; font-size: 13px;">Добавить ответ вручную:</p>
+            <input type="text" id="manual-question" class="highlight-input" placeholder="Вопрос (часть текста задачи)" style="margin-bottom: 6px;">
+            <input type="text" id="manual-answer" class="highlight-input" placeholder="Ответ" style="margin-bottom: 8px;">
+            <button id="add-manual-answer" class="toggle-button" style="padding: 8px 16px; font-size: 12px;">Добавить</button>
+          </div>
+        </div>
+      `;
+      this.renderView('📚 Менеджер ответов', bodyHtml, { closeReturnsToMain: true });
+
+      this.contentDiv.querySelector('#import-answers')?.addEventListener('click', () => {
+        const data = prompt('Вставьте JSON с ответами:');
+        if (data && importCustomAnswers(data)) this.renderAnswersManager();
+      });
+
+      this.contentDiv.querySelector('#export-answers')?.addEventListener('click', () => {
+        const data = exportCustomAnswers();
+        navigator.clipboard.writeText(data).then(() => alert('Скопировано в буфер обмена!')).catch(() => prompt('Скопируйте данные:', data));
+      });
+
+      this.contentDiv.querySelector('#clear-answers')?.addEventListener('click', () => {
+        if (confirm('Удалить все со��ранённые ответы?')) {
+          customAnswers = {};
+          saveCustomAnswers();
+          this.renderAnswersManager();
+        }
+      });
+
+      this.contentDiv.querySelector('#show-subject-answers')?.addEventListener('click', () => {
+        const subj = this.contentDiv.querySelector('#answers-subject-select')?.value || 'rus';
+        const answers = getCustomAnswersForSubject(subj);
+        const container = this.contentDiv.querySelector('#answers-list-container');
+        if (container) {
+          if (answers.length === 0) {
+            container.innerHTML = '<p style="font-size: 13px; color: var(--re-text-muted);">Нет сохранённых ответов для этого предмета.</p>';
+          } else {
+            container.innerHTML = `<div style="max-height: 200px; overflow-y: auto;">${answers.map((a, i) => `<div style="padding: 8px 10px; margin: 4px 0; background: var(--re-bg-card); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;"><div style="flex: 1; font-size: 12px;"><div style="font-weight: bold;">${escapeHtml(a.a)}</div><div style="font-size: 11px; color: var(--re-text-muted);">${escapeHtml(a.q.substring(0, 60))}...</div></div><button data-delete-answer="${i}" data-subject="${subj}" style="padding: 4px 8px; background: rgba(255,80,80,0.3); border: none; border-radius: 6px; color: #ff8080; cursor: pointer; font-size: 12px;">✕</button></div>`).join('')}</div>`;
+            container.querySelectorAll('[data-delete-answer]').forEach(btn => {
+              btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.deleteAnswer);
+                const s = btn.dataset.subject;
+                if (customAnswers[s] && customAnswers[s][idx]) {
+                  customAnswers[s].splice(idx, 1);
+                  saveCustomAnswers();
+                  this.renderAnswersManager();
+                }
+              });
+            });
+          }
+        }
+      });
+
+      this.contentDiv.querySelector('#add-manual-answer')?.addEventListener('click', () => {
+        const subj = this.contentDiv.querySelector('#answers-subject-select')?.value || 'rus';
+        const q = this.contentDiv.querySelector('#manual-question')?.value?.trim();
+        const a = this.contentDiv.querySelector('#manual-answer')?.value?.trim();
+        if (q && a) {
+          addCustomAnswer(subj, q, a);
+          this.renderAnswersManager();
+        }
+      });
+    }
+
+    showSearchAnswers() {
+      this.currentView = VIEW.SEARCH_ANSWERS;
+      this.renderSearchAnswers();
+    }
+
+    renderSearchAnswers() {
+      const subjects = getAllSubjectsForSelection();
+      const bodyHtml = `
+        <div style="padding: 10px;">
+          <p style="margin-bottom: 10px; font-size: 13px;">Вставьте текст задачи или ссылку на задачу sdamgia.ru:</p>
+          <div style="margin-bottom: 10px;">
+            <label style="font-size: 12px; display: block; margin-bottom: 5px;">Предмет:</label>
+            <select id="search-subject-select" class="highlight-input" style="padding: 10px;">
+              ${subjects.map(s => `<option value="${s.value}">${s.label}</option>`).join('')}
+            </select>
+          </div>
+          <textarea id="search-question-input" class="highlight-input" rows="3" placeholder="Вставьте текст задачи или URL задачи (например: https://rus-ege.sdamgia.ru/problem?id=56514)"></textarea>
+          <button id="do-search-answer" class="toggle-button" style="margin-top: 10px; width: 100%;">Найти ответ на sdamgia.ru</button>
+          <div id="search-result" style="margin-top: 15px;"></div>
+        </div>
+      `;
+      this.renderView('🔎 Поиск ответов', bodyHtml, { closeReturnsToMain: true });
+
+      this.contentDiv.querySelector('#do-search-answer')?.addEventListener('click', () => {
+        const subj = this.contentDiv.querySelector('#search-subject-select')?.value || 'rus';
+        const input = this.contentDiv.querySelector('#search-question-input')?.value?.trim();
+        const resultDiv = this.contentDiv.querySelector('#search-result');
+        if (!input) {
+          resultDiv.innerHTML = '<p style="color: #ff8080; font-size: 13px;">Введите текст задачи или ссылку.</p>';
+          return;
+        }
+        resultDiv.innerHTML = '<p style="font-size: 13px;">Открываю поиск Google...</p>';
+        const urls = searchAnswerOnSdamgia(input, subj);
+        if (input.includes('sdamgia.ru/problem')) {
+          window.open(input, '_blank');
+        } else {
+          window.open(urls.searchUrl, '_blank');
+        }
+        resultDiv.innerHTML = '<p style="font-size: 13px;">Найдите задачу на sdamgia.ru, скопируйте ответ и добавьте его в Менеджер ответов.</p>';
+      });
+    }
+
+    showSettings() {
+      this.currentView = VIEW.SETTINGS;
+      this.renderSettings();
+    }
+
+    renderSettings() {
+      const bodyHtml = `
+        <div style="padding: 10px;">
+          <div style="margin-bottom: 15px; padding: 12px; background: var(--re-bg-card); border-radius: 10px;">
+            <h4 style="margin: 0 0 10px; font-size: 14px;">Автоотправка ответа</h4>
+            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer;">
+              <input type="checkbox" id="auto-send-toggle" ${autoSendEnabled ? 'checked' : ''} style="width: 18px; height: 18px;">
+              <span style="font-size: 13px;">Включить автоотправку</span>
+            </label>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+              <label style="font-size: 12px;">КД мин (сек): <input type="number" id="send-cd-min" min="1" max="60" value="${autoSendCooldownMin}" style="width: 50px; padding: 5px; border-radius: 6px; border: 1px solid var(--re-input-border); background: var(--re-input-bg); color: var(--re-text-main);"></label>
+              <label style="font-size: 12px;">КД макс (сек): <input type="number" id="send-cd-max" min="1" max="60" value="${autoSendCooldownMax}" style="width: 50px; padding: 5px; border-radius: 6px; border: 1px solid var(--re-input-border); background: var(--re-input-bg); color: var(--re-text-main);"></label>
+            </div>
+            <button id="save-send-settings" class="toggle-button" style="padding: 8px 16px; font-size: 12px;">Сохранить</button>
+            <p style="font-size: 11px; color: var(--re-text-muted); margin-top: 8px;">Автоотправка автоматически заполняет и отправляет ответ через случайное время КД. КД зависит от длины задачи.</p>
+          </div>
+          <div style="padding: 12px; background: var(--re-bg-card); border-radius: 10px;">
+            <h4 style="margin: 0 0 10px; font-size: 14px;">Сохранение ответов</h4>
+            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+              <input type="checkbox" id="save-correct-toggle" checked style="width: 16px; height: 16px;">
+              <span style="font-size: 12px;">Сохранять после верного ответа</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="save-wrong-toggle" checked style="width: 16px; height: 16px;">
+              <span style="font-size: 12px;">Сохранять после неверного ответа</span>
+            </label>
+          </div>
+        </div>
+      `;
+      this.renderView('⚙️ Настройки', bodyHtml, { closeReturnsToMain: true });
+
+      this.contentDiv.querySelector('#auto-send-toggle')?.addEventListener('change', (e) => {
+        autoSendEnabled = e.target.checked;
+        saveAutoSendSettings();
+      });
+
+      this.contentDiv.querySelector('#save-send-settings')?.addEventListener('click', () => {
+        const minInput = this.contentDiv.querySelector('#send-cd-min');
+        const maxInput = this.contentDiv.querySelector('#send-cd-max');
+        if (minInput && maxInput) {
+          autoSendCooldownMin = Math.max(1, Math.min(60, parseInt(minInput.value, 10) || 5));
+          autoSendCooldownMax = Math.max(autoSendCooldownMin, Math.min(60, parseInt(maxInput.value, 10) || 15));
+          saveAutoSendSettings();
+        }
+        this.renderSettings();
+      });
+    }
+
+    showThemes() {
+      this.currentView = VIEW.THEMES;
+      this.renderThemes();
+    }
+
+    renderThemes() {
+      const themeOptions = [
+        { value: 'dark', label: 'Тёмная тема', preview: 'background:#120f1f;color:#f4edff;border:1px solid #b58fff' },
+        { value: 'light', label: 'Светлая тема', preview: 'background:#eaf1ff;color:#1a2f47;border:1px solid #5f86ff' }
+      ];
+      const bodyHtml = `
+        <div style="padding: 10px;">
+          <p style="margin-bottom: 15px; font-size: 13px;">Выберите тему оформления игры:</p>
+          <div style="display: flex; gap: 15px;">
+            ${themeOptions.map(t => {
+              const selected = currentTheme === t.value ? 'border-color: var(--re-accent); box-shadow: 0 0 12px var(--re-accent);' : '';
+              return `<div class="theme-option" data-theme="${t.value}" style="flex: 1; padding: 15px; border-radius: 12px; cursor: pointer; ${t.preview} ${selected}">
+                <div style="font-weight: bold; margin-bottom: 8px;">${t.label}</div>
+                <div style="font-size: 12px; opacity: 0.8;">Нажмите для выбора</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <p style="margin-top: 15px; font-size: 12px; color: var(--re-text-muted);">Это изменит цветовую схему страницы игры (не меню).</p>
+        </div>
+      `;
+      this.renderView('🎨 Темы оформления', bodyHtml, { closeReturnsToMain: true });
+
+      this.contentDiv.querySelectorAll('.theme-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          const theme = opt.dataset.theme;
+          applyTheme(theme, true);
+          this.renderThemes();
+        });
+      });
+    }
   }
 
   function addExternalMenuButton(buttonConfig) {
@@ -2424,7 +3088,11 @@
     answerCache = loadAnswerCache();
     autoAnswerEnabled = loadAutoAnswerPreference();
     loadAutoBetPreference();
+    loadAutoBetCooldown();
     loadAutoHighlightPreference();
+    loadAutoSendSettings();
+    customAnswers = loadCustomAnswers();
+    loadToolsTheme();
     selectedSubject = loadSelectedSubject();
     exposePublicApi();
     applySiteStyles();
